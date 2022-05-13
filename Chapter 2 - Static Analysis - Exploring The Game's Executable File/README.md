@@ -199,16 +199,56 @@ isteam(targetplayer->team, p->team) // fragment from line 811 in renderhud.cpp
 
 This gives us the `playerent->team` field offset at `0x30c`. Our aimbot can now be made to aim only at enemies and ignore teammates.<br>
 
-Now, the next tidbit we need is the address of the `draw_text` function but I'm going to pull what's called a "pro gamer move" and skip to where `playerent->health` and a bunch of other interesting field offsets are referenced. These are passed to the `draw_textf` function which we know ultimately calls `draw_text`, so we'll be able to kill all the remaining birds with just one stone.<br>
-We can skip all the way to this point on line 1059 by scrolling down in our disassembler until we see the string "huddigits". It's important that we don't run a search for this string because it's likely referenced elsewhere too, so we'll just use our human eyeballs to find it within the function we're already looking at.<br>
+Now, the next tidbit we need is the address of the `draw_text` function and if you recall we decided to look for the chunk starting around line 883 in the source code because this gives us the `pitch`, `yaw`, `o` fields and the `text_width` and `draw_text` functions. So let's scroll down in the disassembly until we see the string `%05.2f YAW`. I found it around address `0x46067C`.<br>
+<table style="table-layout:fixed">
+<tr>
+<th style="width:40%">Source Code</th>
+<th style="width:60%">Disassembler</th>
+</tr>
+<tr>
+<td>
+  
+```cpp
+// fragment of line 884 in renderhud.cpp
+formatstring(text)("%05.2f YAW", camera1->yaw);
+```
+  
+</td>
+<td>
 
-## TO-DO
-Add pitstop at `%05.2f YAW` string to nab physent->o position vector and physent->yaw and physent->pitch fields.
+```asm
+.text:0046065B  lea     eax, [esp+368h+var_318]
+.text:0046065F  sub     esp, 8
+.text:00460662  mov     [esp+370h+var_35C], eax
+.text:00460666  mov     eax, camera1
+.text:0046066B  movss   xmm0, dword ptr [eax+34h]
+.text:00460670  lea     eax, [esp+370h+var_35C]
+.text:00460674  cvtps2pd xmm0, xmm0
+.text:00460677  movsd   qword ptr [esp+370h+x], xmm0 ; int
+.text:0046067C  push    offset a052fYaw ; "%05.2f YAW"
+.text:00460681  push    eax             ; int
+.text:00460682  call    sub_411F40
+```
 
-Okay I lied, while I was scrolling through I saw a bunch of strings like "fps", "lod", "wqd" and so on and looking at the source code I can see these all call `text_width` and `draw_text` so I jotted down those function addresses: `46E370` and `46DD20` respectively.<br>
-Additionally, FONTH is referenced in the `draw_text` call which we know actually just resolves to `(curfont->defaulth)` so I got address `57ED28` for the curfont global reference and field offset `0x18` for `curfont->defaulth`.<br>
+</td>
+</tr>
+</table>
 
-Now scroll all the way to the "huddigits" string for real this time:
+So we can see that the address of `camera1` is moved into eax and then xmm0 is loaded with the value of `camera1+0x34` which is the `yaw` field offset.<br>
+The rest of the fields follow the same pattern, so if we continue looking down until we get to the string `%05.2f Z  ` we find the following offsets:
+```
+physent->yaw field offset @ 0x34
+physent->pitch field offset @ 0x38
+physent->o.x field offset @ 0x4
+physent->o.y field offset @ 0x8
+physent->o.z field offset @ 0xc
+text_width function address @ 0x46E370
+draw_text function address @ 0x46DD20
+```
+We're able to find the function addresses because we know formatstring is called and then the result is passed to text_width which is used in the draw_text call.<br>
+We can also see that `FONTH` is part of the same draw_text calls and we know that FONTH actually just resolves to `(curfont->defaulth)` so I got address `57ED28` for the `curfont` global reference and field offset `0x18` for `curfont->defaulth`. We can also see `VIRTW` used here and confirm that the address we found earlier is correct.<br>
+
+Now scroll all the way to the "huddigits" string for the next important tidbit:
 <table style="table-layout:fixed">
 <tr>
 <th style="width:40%">Source Code</th>

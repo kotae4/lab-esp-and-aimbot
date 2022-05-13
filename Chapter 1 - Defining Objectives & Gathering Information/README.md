@@ -105,7 +105,18 @@ else if(infostr)
     glPopMatrix();
 }
 ```
-We see not only the call to `draw_text` but also exactly how the graphics state is set up for drawing text. We'll look into the draw_text implementation later to make sure it does what we expect it to do. We can also look at `VIRTW`, `VIRTH` and `FONTH` to see if those will be compiled to literals or global references in assembly.
+We see not only the call to `draw_text` but also exactly how the graphics state is set up for drawing text. We'll look into the draw_text implementation later to make sure it does what we expect it to do. We can also look at `VIRTW`, `VIRTH` and `FONTH` to see if those will be compiled to literals or global references in assembly.<br>
+Just below that, around line 864 we start to see more strings too, and at line 884 we see some pretty interesting ones:
+```cpp
+pushfont("mono");
+formatstring(text)("%05.2f YAW", camera1->yaw);     draw_text(text, VIRTW*2 - ( text_width(text) + FONTH ), VIRTH*2 - 17*FONTH/2);
+formatstring(text)("%05.2f PIT", camera1->pitch);   draw_text(text, VIRTW*2 - ( text_width(text) + FONTH ), VIRTH*2 - 15*FONTH/2);
+formatstring(text)("%05.2f X  ", camera1->o.x);     draw_text(text, VIRTW*2 - ( text_width(text) + FONTH ), VIRTH*2 - 13*FONTH/2);
+formatstring(text)("%05.2f Y  ", camera1->o.y);     draw_text(text, VIRTW*2 - ( text_width(text) + FONTH ), VIRTH*2 - 11*FONTH/2);
+formatstring(text)("%05.2f Z  ", camera1->o.z);     draw_text(text, VIRTW*2 - ( text_width(text) + FONTH ), VIRTH*2 - 9*FONTH/2);
+popfont();
+```
+This gets us the `physent->yaw`, `physent->pitch`, and `physent->o` field offsets which represent the rotation and position of the object. We can set the pitch and yaw to force our player character to aim a certain direction, and knowing the position of each player is vital to both aimbot and ESP functionality. Since this little chunk also contains plenty of easy-to-find strings and calls to `draw_text` and `text_width` we'll probably look for this in the disassembler as opposed to the first `draw_text` call we saw around line 832.
 
 Near the bottom of this `gl_drawhud` function we see:
 ```cpp

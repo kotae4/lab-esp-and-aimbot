@@ -27,6 +27,9 @@ And the field offsets of some structs:
 * `weapon->info.reloadtime` @ field offset `0x46`
 * `weapon->reloading` @ field offset `0x20`
 * `playerent->team` @ field offset `0x30c`
+* `physent->o` @ field offset `0x4`
+* `physent->yaw` @ field offset `0x34`
+* `physent->pitch` @ field offset `0x38`
 * `font->defaulth` @ field offset `0x18`
 * `playerent->health` field offset @ `0xec`
 * `playerent->armour` field offset @ `0xf0`
@@ -58,10 +61,9 @@ We'll look at our local player first, `player1` at address `0x58ac00`. So plug t
 Remember, `player1` is defined as `playerent *player` so it's a pointer. We want to follow that pointer in ReClass.NET to the actual `playerent` instance. We can do that by selecting the first field and pressing the 'PTR' button then expand the drop-down twice to see the actual playerent instance.<br>
 The first field is the vtable which is a pointer to somewhere in the \<DATA> section.<br>
 The second field, at `0x4`, if you recall is the `playerent->o` field. "o" in this case is short for "origin" which is the player's position. We know that positions are very often stored as 3 floats (a vec3, vector3, etc). We can confirm by looking at the definition of `physent` in `entity.h` and we see that the first defined field is indeed `vec o, vel`. "vel" in this case is short for "velocity" so we can also map that. We can do this by selecting the field in ReClass.NET and pressing the 'VEC 3' button. Do this for both the `o` field and the `vel` field. If you go into the game and run around a bit you should see both `o` and `vel` changing in ReClass.NET. We can see that the 'z' component of the vectors corresponds to the height which is somewhat rare in games. Usually the 'y' component is height.<br>
-Continue mapping out the data structures and making sure the known offsets we found match up with the mapping. Refer to the source code definitions but don't rely on them completely as the published build may use a slightly different codebase. You should also be checking that they're changing according to in-game actions.
-
-## TO-DO
-confirm playerent->mag offset
+Continue mapping out the data structures and making sure the known offsets we found match up with the mapping. Refer to the source code definitions but don't rely on them blindly as the compiler will pad things and the published build may use a slightly different codebase. You should also be checking that they're changing according to in-game actions.<br>
+Eventually you'll get to the `mag` field offset on the `playerent` which is the only one we couldn't get an exact offset for, but if we compare our mapping in ReClass to the source code and also watch how it changes in-game as we reload, we can see that it does indeed start at offset `0x128`.<br>
+Continue mapping the playerent, weapon, and guninfo structs to your heart's content. Keep in mind the compiler likes to pad things so that fields start on an address that's a multiple of 4. We don't really need **all** the fields, so don't worry if you get lost.
 
 ## Summary ##
 
