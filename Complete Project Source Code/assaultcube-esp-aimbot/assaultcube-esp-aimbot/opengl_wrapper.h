@@ -20,15 +20,15 @@ typedef void(__stdcall* tglScalef)(float x, float y, float z);
 typedef void(__stdcall* tglTranslatef)(float x, float y, float z);
 typedef void(__stdcall* tglGetFloatv)(int pname, float* params);
 
-#define GL_DEPTH_TEST = 0xb71
-#define GL_MODELVIEW = 0x1700
-#define GL_PROJECTION = 0x1701
-#define GL_BLEND = 0xbe2
-#define GL_SRC_ALPHA = 0x302
-#define GL_ONE_MINUS_SRC_ALPHA = 0x303
-#define GL_TRIANGLE_STRIP = 0x5
-#define GL_ONE = 0x1
-#define GL_TEXTURE_2D = 0xde1
+#define GL_DEPTH_TEST 0xb71
+#define GL_MODELVIEW 0x1700
+#define GL_PROJECTION 0x1701
+#define GL_BLEND 0xbe2
+#define GL_SRC_ALPHA 0x302
+#define GL_ONE_MINUS_SRC_ALPHA 0x303
+#define GL_TRIANGLE_STRIP 0x5
+#define GL_ONE 0x1
+#define GL_TEXTURE_2D 0xde1
 
 class opengl_wrapper
 {

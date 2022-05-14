@@ -1,8 +1,9 @@
 #include "pch.h"
 #include "CheatMain.h"
 #include "opengl_wrapper.h"
-// for vprintf used in CheatMain::DbgPrint
-#include <cstdio>
+// for vararg processing in CheatMain::DbgPrint and CheatMain::draw_textf
+#include <stdio.h>
+#include <stdarg.h>
 
 HMODULE CheatMain::hMod = NULL;
 uintptr_t CheatMain::ProcessBaseAddress = NULL;
@@ -36,14 +37,60 @@ void CheatMain::DbgPrint(const char* fmt, ...)
 #ifdef DEBUGPRINT
 	va_list args;
 	va_start(args, fmt);
-	vprintf(fmt, args);
+	vprintf_s(fmt, args);
 	va_end(args);
 #endif
 	return;
 }
 
+void CheatMain::SetupHUDDrawing()
+{
+	opengl_wrapper::oglDisable(GL_DEPTH_TEST);
+	opengl_wrapper::oglMatrixMode(GL_MODELVIEW);
+	opengl_wrapper::oglLoadIdentity();
+	opengl_wrapper::oglMatrixMode(GL_PROJECTION);
+	opengl_wrapper::oglLoadIdentity();
+	opengl_wrapper::oglEnable(GL_BLEND);
+	opengl_wrapper::oglEnable(GL_TEXTURE_2D);
+	opengl_wrapper::oglOrtho(0, (double)*VIRTW * 2, (double)VIRTH * 2, 0, -1, 1);
+}
+
+void CheatMain::draw_textf(int x, int y, int r, int g, int b, const char* fmt, ...)
+{
+	char buf[260];
+	va_list args; 
+	va_start(args, fmt); 
+	int retVal = vsnprintf_s(buf, 260, _TRUNCATE, fmt, args);
+	va_end(args);
+
+	draw_text(buf, x, y, r, g, b);
+}
+
+void CheatMain::draw_text(const char* str, int x, int y, int r, int g, int b, int a /*= 255*/, int cursor /*= -1*/, int maxwidth /*= -1*/)
+{
+	__asm
+	{
+		mov ecx, str
+		mov edx, x
+		push maxwidth
+		push cursor
+		push a
+		push b
+		push g
+		push r
+		push y
+		call odraw_text
+		add esp, 28
+	}
+}
+
 void hk_gl_drawhud(int w, int h, int curfps, int nquads, int curvert, bool underwater, int elapsed)
 {
+	CheatMain::SetupHUDDrawing();
+	CheatMain::draw_text("Hello World", 100, 100, 255, 255, 255);
+
+	CheatMain::draw_textf(100, 200, 255, 255, 0, "MyModule: %tx", CheatMain::hMod);
+
 	CheatMain::ogl_drawhud_trampoline(w, h, curfps, nquads, curvert, underwater, elapsed);
 }
 
