@@ -7,15 +7,28 @@ struct Vector3f
 	float x, y, z;
 };
 
+struct Vector4f
+{
+	float x, y, z, w;
+};
+
 struct Matrixf
 {
 	float data[16];
+
+	void transform(const Vector3f& in, Vector4f& out) const
+	{
+		out.x = ((in.x * data[0]) + (in.y * data[4]) + (in.z * data[8]) + data[12]);
+		out.y = ((in.x * data[1]) + (in.y * data[5]) + (in.z * data[9]) + data[13]);
+		out.z = ((in.x * data[2]) + (in.y * data[6]) + (in.z * data[10]) + data[14]);
+		out.w = ((in.x * data[3]) + (in.y * data[7]) + (in.z * data[11]) + data[15]);
+	}
 };
 
 template<typename T>
 struct Vector
 {
-	T** data;
+	T* data;
 	int capacity;
 	int count;
 };

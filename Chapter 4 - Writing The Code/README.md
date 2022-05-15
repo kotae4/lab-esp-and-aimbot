@@ -7,7 +7,7 @@ Start by creating a Visual Studio project. Use the 'Dynamic-Link Library (DLL)' 
 
 Finally, it's worth noting that if you're using the code from this repo you will need to install minhook via vcpkg using the x86-windows-static triplet as I modified the vcxproj file to use that triplet (the `VcpkgTriplet` option in 'Globals' PropertyGroup).
 
-## Giving Shape To Our Data ##
+## Part 1 - Giving Shape To Our Data ##
 
 So first thing we're going to do is complete the "bridge" we've been building between the game, its compiled form, and now our cheat. We take all the functions and field offsets we gathered before and define them in our program.<br>
 The data structures we mapped out in ReClass.NET in the previous chapter can be exported to C/C++ struct definitions which takes care of a lot of the work. To do so, in ReClass.NET, click on the 'Project' tab in the menu toolbar then 'Generate C++ Code...'. This will pop up a window for you to then select all and copy.<br>
@@ -56,13 +56,15 @@ These are the global references we need to store a pointer to:
 And of course we'll also store pointers to the functions whose signatures we defined in the `game_definitions.h` file.<br>
 I'll include some helpful utility functions, like allocating a console window to print to.<br>
 
+### Part 1 Codebase ###
 I'll push a commit containing all the work I've done so far so you can reference the code at this exact moment in time.<br>
 You can find it here: https://github.com/kotae4/lab-esp-and-aimbot/tree/Part1Chapter4 <br>
 
+## Part 2 - Drawing Hello World ##
 Next, we need to add some meat to it. The first thing I always try to do is to draw the string "Hello World" on screen. So let's add a call to  to our `hk_gl_drawhud` function in `CheatMain.cpp`. We can see the default parameters in the game's source code are 255 for color component parameters and -1 for the cursor and maxwidth parameters, so here's what my call looks like: `CheatMain::odraw_text("Hello World", 10, 10, 255, 255, 255, 255, -1, -1);`. Now we're ready to compile and inject it into the game.<br>
 I use cheat engine's built-in injector. To do so, open up cheat engine and in the upper left corner click the glowing computer icon and select the game process. Then, click the 'Memory View' button near the bottom left of the main cheat engine window. In the popped up Memory View window open the 'Tools' menu then 'Inject DLL' at the bottom of the list. Select our compiled DLL and when cheat engine asks if you'd like to execute a function click 'No' (DllMain still gets executed, don't worry).<br>
 
-## A Snag With Drawing Text ##
+### A Snag With Drawing Text ###
 The game crashes immediately. A slight snag in our plans, but this is okay. This is common when you're messing with low-level stuff. So we know we could successfully inject before we added the call to `odraw_text`, so that already narrows it down perfectly. Let's compare how our call looks in assembly against how the call looks in the game's assembly. I load up two instances of my disassembler and load the cheat DLL into one and the game's exe into the other.<br>
 So by looking at all the calls to draw_text in the game I can see it's definitely a non-standard calling convention. It looks like the string argument is loaded into the ecx register and the 'left' or X-coordinate argument is loaded into the edx register. The rest of the arguments are pushed onto the stack in reverse order.<br>
 If we look at our compiled DLL we can see all the arguments are pushed, none are loaded into registers, hence the crash.<br>
@@ -141,5 +143,177 @@ CheatMain::ogl_drawhud_trampoline(w, h, curfps, nquads, curvert, underwater, ela
 ```
 I went ahead and added a formatted version of our draw_text wrapper, as you can see. It just writes the formatted varargs into a char buffer then passes that to CheatMain::draw_text.<br>
 Finally, a last note, the coordinates passed to these drawing functions are not 1:1 screen coordinates. It seems the game uses a "virtual" coordinate system, hence the presence of `VIRTW` and `VIRTH`. We could translate this virtual coordinate system back to our screenspace coordinate system, but I don't think it's entirely necessary for HUD drawing. Perhaps as we continue toward our goals we'll find a need to do so, I'm not sure yet.<br>
+
+### Part 2 Codebase ###
 Anyway, I'll push this commit now before we move on to the rest.<br>
 You can view the codebase at this point in time here: https://github.com/kotae4/lab-esp-and-aimbot/tree/Part2Chapter4 <br>
+
+## Part 3 - ESP Functionality ##
+Now, let's work on our first major goal: name ESP. We want to draw each player's name over their head.<br>
+So I'm going to create another function for this: `DrawNametags`.<br>
+In this function I'm going to loop the `bots` vector and perform world-to-screen transformation on each position, then draw their name by calling our `draw_text` with the transformed position.<br>
+Ah, it is at this point I realized I have a bug in my definition of `Vector`. The `T** data` should be changed to `T* data`. Easy fix, and no more crashes from that.<br>
+The world-to-screen transformation is some complicated math. I linked to some resources in the main guide, so if you're more clever than I am maybe you can understand it.<br>
+But since I don't, I'm not even going to bother trying to explain what it does. I cobbled it together from many online sources until it worked. Here it is:
+```cpp
+Vector4f clipCoords(0.f, 0.f, 0.f, 1.f);
+mvpmatrix->transform(bot->o, clipCoords);
+if (clipCoords.w < 0.1f) continue;
+Vector3f NDCCoords;
+NDCCoords.x = clipCoords.x / clipCoords.w;
+NDCCoords.y = clipCoords.y / clipCoords.w;
+NDCCoords.z = clipCoords.z / clipCoords.w;
+Vector3f screenPos;
+// normally we'd divide by 2 here as part of the world-to-screen transformation,
+// but the "virtual screen coordinate system" the game uses is actually VIRTW * 2 and VIRTH * 2
+// so we can skip the divide by 2 by not multiplying VIRTW and VIRTH by 2
+screenPos.x = (*VIRTW * NDCCoords.x) + (*VIRTW + NDCCoords.x);
+screenPos.y = -(VIRTH * NDCCoords.y) + (VIRTH + NDCCoords.y);
+```
+Ah, I also added that transform function to the `Matrixf` definition. Again, it's some weird math I don't fully understand, I had to google to find it:
+```cpp
+void transform(const Vector3f& in, Vector4f& out) const
+{
+    out.x = ((in.x * data[0]) + (in.y * data[4]) + (in.z * data[8]) + data[12]);
+    out.y = ((in.x * data[1]) + (in.y * data[5]) + (in.z * data[9]) + data[13]);
+    out.z = ((in.x * data[2]) + (in.y * data[6]) + (in.z * data[10]) + data[14]);
+    out.w = ((in.x * data[3]) + (in.y * data[7]) + (in.z * data[11]) + data[15]);
+}
+```
+So now that we can transform world coordinates to screen coordinates we can draw the bot's names above their head. We can also check their `state` and `team` fields to change which color we draw with. I chose to draw white when either they're dead, or I'm dead, or I'm spectating, green when they're a teammate, and red otherwise. I also added some sanity checks to make sure we don't crash.<br>
+Here's my complete `DrawNametags` function now:
+```cpp
+void CheatMain::DrawNametags()
+{
+	if ((bots == NULL) || (bots->count <= 0) || (bots->data[0] == NULL)) return;
+
+	for (int index = 0; index < bots->count; index++)
+	{
+		playerent_wrapper* bot = bots->data[index];
+		if (bot == NULL) continue;
+
+		// the world-to-screen transformation is some complicated math that i don't fully understand.
+		// i usually just copy paste until something works
+		// here's some links that may help:
+		// https://www.scratchapixel.com/lessons/3d-basic-rendering/computing-pixel-coordinates-of-3d-point/mathematics-computing-2d-coordinates-of-3d-points
+		// https://www.3dgep.com/understanding-the-view-matrix/#Transformations
+		// https://answers.unity.com/questions/1014337/calculation-behind-cameraworldtoscreenpoint.html
+		// https://www.codeproject.com/Articles/42848/A-New-Perspective-on-Viewing
+		Vector4f clipCoords(0.f, 0.f, 0.f, 1.f);
+		mvpmatrix->transform(bot->o, clipCoords);
+		if (clipCoords.w < 0.1f) continue;
+		Vector3f NDCCoords;
+		NDCCoords.x = clipCoords.x / clipCoords.w;
+		NDCCoords.y = clipCoords.y / clipCoords.w;
+		NDCCoords.z = clipCoords.z / clipCoords.w;
+		Vector3f screenPos;
+		// normally we'd divide by 2 here as part of the world-to-screen transformation,
+		// but the "virtual screen coordinate system" the game uses is actually VIRTW * 2 and VIRTH * 2
+		// so we can skip the divide by 2 by not multiplying VIRTW and VIRTH by 2
+		screenPos.x = (*VIRTW * NDCCoords.x) + (*VIRTW + NDCCoords.x);
+		screenPos.y = -(VIRTH * NDCCoords.y) + (VIRTH + NDCCoords.y);
+
+		if ((bot->state == CS_DEAD) || 
+        ((player1 == NULL) || (player1->state == CS_SPECTATE) || 
+        ((player1->state == CS_DEAD) && (player1->spectatemode > SM_NONE))))
+			draw_text(bot->name, screenPos.x, screenPos.y, 255, 255, 255);
+		else if (bot->team == player1->team)
+			draw_text(bot->name, screenPos.x, screenPos.y, 0, 255, 0);
+		else
+			draw_text(bot->name, screenPos.x, screenPos.y, 255, 0, 0);
+	}
+}
+```
+
+And here's what it looks like in-game:
+| ![esp-nametags](guide_images/esp_nametags.png) |
+|:--:|
+| <sub>Image: Nametags drawn over bots, colored based on team and state</sub> | 
+
+Now let's move on to the next feature: drawing outlines around each player.<br>
+In chapter 2 we decided we'd write our own drawing function for this, so let's do that.<br>
+Basically, we want to draw 4 lines:
+* From (xMin, yMin) to (xMax, yMin)
+* From (xMax, yMin) to (xMax, yMax)
+* From (xMax, yMax) to (xMin, yMax)
+* From (xMin, yMax) to (xMin, yMin)
+
+Where xMin, yMin, xMax, and yMax are all just +- some value from the player's position.<br>
+We can use the player's `eyeheight` field to offset the y value and `radius` field to offset the x value.<br>
+First, we need to find the constant value of `GL_LINE_LOOP`. I search the game's code and find a string near where it's referenced. That string is "T * P x 2". Searching this in my disassembler and I find it's used in 3 places. The first place doesn't match what I'm seeing in the source code, but the second place does. So that brings me to address `0x457BBE` and somewhere further down I see two calls to `glLineWidth`, just after the first call is a call to `glBegin`. The parameter passed to that call is the value of `GL_LINE_LOOP`, which is `0x2`. I add that to `opengl_wrapper.h` before moving on.<br>
+Here's what I came up with for the drawing function:
+```cpp
+void CheatMain::DrawOutline2d(float xMin, float yMin, float xMax, float yMax)
+{
+	opengl_wrapper::oglBegin(GL_LINE_LOOP);
+	opengl_wrapper::oglVertex2f(xMin, yMin);
+	opengl_wrapper::oglVertex2f(xMax, yMin);
+	opengl_wrapper::oglVertex2f(xMax, yMax);
+	opengl_wrapper::oglVertex2f(xMin, yMax);
+	opengl_wrapper::oglEnd();
+}
+```
+
+And the function that calls it:
+```cpp
+void CheatMain::DrawPlayerOutlines2d()
+{
+	if ((bots == NULL) || (bots->count <= 0) || (bots->data[0] == NULL)) return;
+
+	for (int index = 0; index < bots->count; index++)
+	{
+		playerent_wrapper* bot = bots->data[index];
+		if (bot == NULL) continue;
+
+		Vector3f botMin(bot->o.x - bot->radius, bot->o.y, bot->o.z - bot->eyeheight);
+		Vector3f botMax(bot->o.x + bot->radius, bot->o.y + bot->radius, bot->o.z);
+
+		Vector3f botScreenMin, botScreenMax;
+		bool onScreenMin, onScreenMax;
+		onScreenMin = WorldToScreen(mvpmatrix, botMin, *VIRTW, VIRTH, botScreenMin);
+		onScreenMax = WorldToScreen(mvpmatrix, botMax, *VIRTW, VIRTH, botScreenMax);
+
+		if ((onScreenMin == false) && (onScreenMax == false)) continue;
+
+		DrawOutline2d(botScreenMin.x, botScreenMin.y, botScreenMax.x, botScreenMax.y);
+	}
+}
+```
+You can see I moved the world-to-screen logic into its own function.<br>
+I then add a call to `CheatMain::DrawPlayerOutlines2d` inside our `hk_gl_drawhud` underneath the `CheatMain::DrawNametags` call.<br>
+Compiling this and injecting it into the game will result in... nothing. To debug why it's not drawing anything, I added a separate call to `CheatMain::DrawOutline2d` inside `hk_gl_drawhud` using hardcoded coordinates that should **definitely** appear on screen, and compiling and injecting again draws nothing.<br>
+So at this point I'm thinking it's the graphics state again so I look at places in the game's code where a call to `box2d` is made and the first one I find is in `editing.cpp` around line 794. I can see it calls glDisable twice to disable GL_BLEND and GL_TEXTURE_2D before calling box2d, then glEnable again to re-enable them afterwards.<br>
+This makes sense because we're drawing a primitive line instead of textures, and we don't have any need to blend colors either. If I had more experience with openGL I wouldn't have made this mistake, but such is life.<br>
+Here's the fixed `DrawOutline2d` function:
+```cpp
+void CheatMain::DrawOutline2d(float xMin, float yMin, float xMax, float yMax, float colorR, float colorG, float colorB)
+{
+	opengl_wrapper::oglDisable(GL_BLEND);
+	opengl_wrapper::oglDisable(GL_TEXTURE_2D);
+	opengl_wrapper::oglColor4f(colorR, colorG, colorB, 1.f);
+	opengl_wrapper::oglBegin(GL_LINE_LOOP);
+	opengl_wrapper::oglVertex2f(xMin, yMin);
+	opengl_wrapper::oglVertex2f(xMax, yMin);
+	opengl_wrapper::oglVertex2f(xMax, yMax);
+	opengl_wrapper::oglVertex2f(xMin, yMax);
+	opengl_wrapper::oglEnd();
+	opengl_wrapper::oglEnable(GL_BLEND);
+	opengl_wrapper::oglEnable(GL_TEXTURE_2D);
+}
+```
+I also added customizable colors so we can draw enemies and teammates differently like with the nametags. This involved changing `CheatMain::DrawPlayerOutlines2d` as well, so it looks even more like `CheatMain::DrawNametags`, but that's okay. I also changed the conditional that checks onScreenMin and onScreenMax to continue if either is false, this should get rid of glitchy boxes when a player is just barely on screen.<br>
+Here's what it looks like in-game now:
+| ![esp-nametags-boxes](guide_images/esp_nametags-boxes.png) |
+|:--:|
+| <sub>Image: Nametags drawn over and boxes around bots, colored based on team and state</sub> | 
+
+
+And with that we are done with our first major goal: ESP functionality!<br>
+
+### Part 3 Codebase ###
+Before we move on to the next major goal, aimbot functionality, I'll push this commit.<br>
+You can view the codebase at this specific point in time using this link: https://github.com/kotae4/lab-esp-and-aimbot/tree/Part3Chapter4 <br>
+
+## Part 4 - Aimbot Functionality ##
+
+Work-In-Progress

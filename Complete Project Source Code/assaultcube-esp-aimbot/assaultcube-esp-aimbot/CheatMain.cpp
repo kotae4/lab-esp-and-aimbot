@@ -84,12 +84,118 @@ void CheatMain::draw_text(const char* str, int x, int y, int r, int g, int b, in
 	}
 }
 
+void CheatMain::DrawOutline2d(float xMin, float yMin, float xMax, float yMax, float colorR, float colorG, float colorB)
+{
+	opengl_wrapper::oglDisable(GL_BLEND);
+	opengl_wrapper::oglDisable(GL_TEXTURE_2D);
+	opengl_wrapper::oglColor4f(colorR, colorG, colorB, 1.f);
+	opengl_wrapper::oglBegin(GL_LINE_LOOP);
+	opengl_wrapper::oglVertex2f(xMin, yMin);
+	opengl_wrapper::oglVertex2f(xMax, yMin);
+	opengl_wrapper::oglVertex2f(xMax, yMax);
+	opengl_wrapper::oglVertex2f(xMin, yMax);
+	opengl_wrapper::oglEnd();
+	opengl_wrapper::oglEnable(GL_BLEND);
+	opengl_wrapper::oglEnable(GL_TEXTURE_2D);
+}
+
+bool WorldToScreen(const Matrixf *transMat, const Vector3f& in, double screenWidth, double screenHeight, Vector3f& out)
+{
+	// the world-to-screen transformation is some complicated math that i don't fully understand.
+	// i usually just copy paste until something works
+	// here's some links that may help:
+	// https://www.scratchapixel.com/lessons/3d-basic-rendering/computing-pixel-coordinates-of-3d-point/mathematics-computing-2d-coordinates-of-3d-points
+	// https://www.3dgep.com/understanding-the-view-matrix/#Transformations
+	// https://answers.unity.com/questions/1014337/calculation-behind-cameraworldtoscreenpoint.html
+	// https://www.codeproject.com/Articles/42848/A-New-Perspective-on-Viewing
+	Vector4f clipCoords(0.f, 0.f, 0.f, 1.f);
+	transMat->transform(in, clipCoords);
+	if (clipCoords.w < 0.1f) return false;
+	Vector3f NDCCoords;
+	NDCCoords.x = clipCoords.x / clipCoords.w;
+	NDCCoords.y = clipCoords.y / clipCoords.w;
+	NDCCoords.z = clipCoords.z / clipCoords.w;
+	// normally we'd divide by 2 here as part of the world-to-screen transformation,
+	// but the "virtual screen coordinate system" the game uses is actually VIRTW * 2 and VIRTH * 2
+	// so we can skip the divide by 2 by not multiplying VIRTW and VIRTH by 2
+	out.x = (screenWidth * NDCCoords.x) + (screenWidth + NDCCoords.x);
+	out.y = -(screenHeight * NDCCoords.y) + (screenHeight + NDCCoords.y);
+	return true;
+}
+
+void CheatMain::DrawNametags()
+{
+	if ((bots == NULL) || (bots->count <= 0) || (bots->data[0] == NULL)) return;
+
+	for (int index = 0; index < bots->count; index++)
+	{
+		playerent_wrapper* bot = bots->data[index];
+		if (bot == NULL) continue;
+
+		Vector3f screenPos;
+		if (WorldToScreen(mvpmatrix, bot->o, *VIRTW, VIRTH, screenPos) == false)
+			continue;
+
+		if ((bot->state == CS_DEAD) || 
+			((player1 == NULL) || (player1->state == CS_SPECTATE) || 
+				((player1->state == CS_DEAD) && (player1->spectatemode > SM_NONE))))
+			draw_text(bot->name, screenPos.x, screenPos.y, 255, 255, 255);
+		else if (bot->team == player1->team)
+			draw_text(bot->name, screenPos.x, screenPos.y, 0, 255, 0);
+		else
+			draw_text(bot->name, screenPos.x, screenPos.y, 255, 0, 0);
+	}
+}
+
+void CheatMain::DrawPlayerOutlines2d()
+{
+	if ((bots == NULL) || (bots->count <= 0) || (bots->data[0] == NULL)) return;
+
+	for (int index = 0; index < bots->count; index++)
+	{
+		playerent_wrapper* bot = bots->data[index];
+		if (bot == NULL) continue;
+
+		Vector3f botMin(bot->o.x - bot->radius, bot->o.y, bot->o.z - bot->eyeheight);
+		Vector3f botMax(bot->o.x + bot->radius, bot->o.y + bot->radius, bot->o.z);
+
+		Vector3f botScreenMin, botScreenMax;
+		bool onScreenMin, onScreenMax;
+		onScreenMin = WorldToScreen(mvpmatrix, botMin, *VIRTW, VIRTH, botScreenMin);
+		onScreenMax = WorldToScreen(mvpmatrix, botMax, *VIRTW, VIRTH, botScreenMax);
+
+		if ((onScreenMin == false) || (onScreenMax == false)) continue;
+
+		if ((bot->state == CS_DEAD) ||
+			((player1 == NULL) || (player1->state == CS_SPECTATE) ||
+				((player1->state == CS_DEAD) && (player1->spectatemode > SM_NONE))))
+			DrawOutline2d(botScreenMin.x, botScreenMin.y, botScreenMax.x, botScreenMax.y, 1.f, 1.f, 1.f);
+		else if (bot->team == player1->team)
+			DrawOutline2d(botScreenMin.x, botScreenMin.y, botScreenMax.x, botScreenMax.y, 0.f, 1.f, 0.f);
+		else
+			DrawOutline2d(botScreenMin.x, botScreenMin.y, botScreenMax.x, botScreenMax.y, 1.f, 0.f, 0.f);
+	}
+}
+
 void hk_gl_drawhud(int w, int h, int curfps, int nquads, int curvert, bool underwater, int elapsed)
 {
 	CheatMain::SetupHUDDrawing();
-	CheatMain::draw_text("Hello World", 100, 100, 255, 255, 255);
+	CheatMain::draw_text("Hello World", 100, 500, 255, 255, 255);
 
-	CheatMain::draw_textf(100, 200, 255, 255, 0, "MyModule: %tx", CheatMain::hMod);
+	CheatMain::draw_textf(100, 600, 255, 255, 0, "MyModule: %tx", CheatMain::hMod);
+
+	if ((CheatMain::bots != NULL) && (CheatMain::bots->count > 0) && (CheatMain::bots->data[0] != NULL))
+	{
+		CheatMain::draw_textf(100, 700, 255, 255, 255, "Bot[0]: %tx (@ %tx)\nBot[0]->name: %s (@ %tx)",
+			CheatMain::bots->data[0], &CheatMain::bots->data[0],
+			CheatMain::bots->data[0]->name, &(CheatMain::bots->data[0]->name));
+	}
+
+	CheatMain::DrawNametags();
+	CheatMain::DrawPlayerOutlines2d();
+
+	// used for debugging :)
+	//CheatMain::DrawOutline2d(100, 100, 1000, 1000, 1.f, 0.f, 0.f);
 
 	CheatMain::ogl_drawhud_trampoline(w, h, curfps, nquads, curvert, underwater, elapsed);
 }
@@ -146,5 +252,10 @@ void CheatMain::ThreadedInitialize(HMODULE hMod)
 
 	DbgPrint("Player: %tx\n&Player->health: %tx\nPlayer->health: %d\n", player1, &player1->health, player1->health);
 	DbgPrint("Camera: %tx\n&Camera->o: %tx\nCamera->o: (%.2f, %.2f, %.2f)\n", camera1, &camera1->o, camera1->o.x, camera1->o.y, camera1->o.z);
-	DbgPrint("Bots: %tx\n&Bots->count: %tx\nBots->count: %d\n", bots, &bots->count, bots->count);
+	
+	if ((CheatMain::bots != NULL) && (CheatMain::bots->count > 0) && (CheatMain::bots->data[0] != NULL))
+	{
+		DbgPrint("Bots: %tx\n&Bots->count: %tx\nBots->count: %d\n", bots, &bots->count, bots->count);
+		DbgPrint("*Bot[0]: %tx\n&Bot[0]: %tx\n*Bot[0]->name: %s\n", bots->data[0], &bots->data[0], (bots->data[0])->name);
+	}
 }
