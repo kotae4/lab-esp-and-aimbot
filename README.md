@@ -1,12 +1,11 @@
-# !!! UNDER CONSTRUCTION !!! #
-
 # lab-esp-and-aimbot #
 
 Walkthrough of an ESP and aimbot cheat from scratch for the open-source and free game [Assault Cube](https://assault.cubers.net/).<br>
 This is written solely for educational purposes. Please refer to the licenses of all software involved and act in accordance with your governing law.<br>
 Reverse engineering and modification of software is an advanced subtopic of CompSci and videogames provide a great medium for learning and practicing these skills. Always hack responsibly.<br>
 
-**Anything built alongside this lab should only be used offline against bots. Don't ruin the enjoyment of others.** The code provided by this lab will only work against bots, not against real players.
+**Anything built alongside this lab should only be used offline against bots. Don't ruin the enjoyment of others.**<br>
+The code provided by this lab will only work against bots, not against real players.
 
 ## About Rootkit Education ##
 
@@ -61,13 +60,15 @@ That process will be detailed here:
 3. Integrate vcpkg with visual studio (`.\vcpkg\vcpkg integrate install` in elevated command prompt)
 4. Install minhook via vcpkg
     * `.\vcpkg\vcpkg install minhook` or just `vcpkg install minhook` if added to PATH
+    * The included project uses the x86-windows-static triplet, so the command would be `vcpkg install minhook:x86-windows-static`.
 
 If you installed vcpkg to your system drive (eg: `C:\dev`) and integrated with visual studio correctly then you'll be able to simply `#include <MinHook.h>` in all current and future visual studio projects.
 
 ## Table of Contents ##
 
-1. Chapter 1 - Defining Our Objectives & Gathering Information
-2. Chapter 2 - Static Analysis - Exploring The Game's Executable File
-3. Chapter 3 - Dynamic Analysis - Confirming Our Findings
-4. Chapter 4 - Writing The Code
-5. Chapter 5 - Conclusion
+1. <a href="Chapter 1 - Defining Objectives %26 Gathering Information">Chapter 1 - Defining Our Objectives & Gathering Information</a>
+2. <a href="Chapter 2 - Static Analysis - Exploring The Game's Executable File">Chapter 2 - Static Analysis - Exploring The Game's Executable File</a>
+3. <a href="Chapter 3 - Dynamic Analysis - Confirming Our Findings">Chapter 3 - Dynamic Analysis - Confirming Our Findings</a>
+4. <a href="Chapter 4 - Writing The ESP">Chapter 4 - Writing The ESP</a>
+5. <a href="Chapter 5 - Writing The Aimbot">Chapter 5 - Writing The Aimbot</a>
+6. <a href="Chapter 6 - Conclusion">Chapter 6 - Conclusion</a>
