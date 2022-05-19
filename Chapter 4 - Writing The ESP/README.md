@@ -1,4 +1,4 @@
-# Chapter 4 - Writing The Code #
+# Chapter 4 - Writing The ESP #
 
 Finally, the moment we've all been waiting for: coding the thing! A lot of people think programming is all about writing code, but those people are fools. If 90% of your time spent on a project is writing code then you're almost certainly writing awful code. Research and planning are huge parts of any project which includes what we were doing in the previous chapters.<br>
 Unfortunately, I plan on writing some awful code for this project, but it's at least planned. Hear me out: writing direct, concise code that doesn't take advantage of OOP or any other design paradigms is going to be easier to follow as a beginner than some massive, abstract cheating framework.<br>
@@ -59,9 +59,10 @@ I'll include some helpful utility functions, like allocating a console window to
 ### Part 1 Codebase ###
 I'll push a commit containing all the work I've done so far so you can reference the code at this exact moment in time.<br>
 You can find it here: https://github.com/kotae4/lab-esp-and-aimbot/tree/Part1Chapter4 <br>
+Please note that the guide itself will be changed over time so you should always use the 'main' branch for the non-code portion.<br>
 
 ## Part 2 - Drawing Hello World ##
-Next, we need to add some meat to it. The first thing I always try to do is to draw the string "Hello World" on screen. So let's add a call to  to our `hk_gl_drawhud` function in `CheatMain.cpp`. We can see the default parameters in the game's source code are 255 for color component parameters and -1 for the cursor and maxwidth parameters, so here's what my call looks like: `CheatMain::odraw_text("Hello World", 10, 10, 255, 255, 255, 255, -1, -1);`. Now we're ready to compile and inject it into the game.<br>
+Next, we need to add some meat to it. The first thing I always try to do is to draw the string "Hello World" on screen. So let's add a call to `draw_text` in our `hk_gl_drawhud` function in `CheatMain.cpp`. We can see the default parameters in the game's source code are 255 for color component parameters and -1 for the cursor and maxwidth parameters, so here's what my call looks like: `CheatMain::odraw_text("Hello World", 10, 10, 255, 255, 255, 255, -1, -1);`. Now we're ready to compile and inject it into the game.<br>
 I use cheat engine's built-in injector. To do so, open up cheat engine and in the upper left corner click the glowing computer icon and select the game process. Then, click the 'Memory View' button near the bottom left of the main cheat engine window. In the popped up Memory View window open the 'Tools' menu then 'Inject DLL' at the bottom of the list. Select our compiled DLL and when cheat engine asks if you'd like to execute a function click 'No' (DllMain still gets executed, don't worry).<br>
 
 ### A Snag With Drawing Text ###
@@ -147,6 +148,7 @@ Finally, a last note, the coordinates passed to these drawing functions are not 
 ### Part 2 Codebase ###
 Anyway, I'll push this commit now before we move on to the rest.<br>
 You can view the codebase at this point in time here: https://github.com/kotae4/lab-esp-and-aimbot/tree/Part2Chapter4 <br>
+Please note that the guide itself will be changed over time so you should always use the 'main' branch for the non-code portion.<br>
 
 ## Part 3 - ESP Functionality ##
 Now, let's work on our first major goal: name ESP. We want to draw each player's name over their head.<br>
@@ -313,7 +315,4 @@ And with that we are done with our first major goal: ESP functionality!<br>
 ### Part 3 Codebase ###
 Before we move on to the next major goal, aimbot functionality, I'll push this commit.<br>
 You can view the codebase at this specific point in time using this link: https://github.com/kotae4/lab-esp-and-aimbot/tree/Part3Chapter4 <br>
-
-## Part 4 - Aimbot Functionality ##
-
-Work-In-Progress
+Please note that the guide itself will be changed over time so you should always use the 'main' branch for the non-code portion.<br>

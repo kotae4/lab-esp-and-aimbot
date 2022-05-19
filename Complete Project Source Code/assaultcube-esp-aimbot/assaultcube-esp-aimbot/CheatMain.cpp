@@ -14,9 +14,13 @@ int* CheatMain::VIRTW = NULL;
 font_wrapper* CheatMain::curfont = NULL;
 Matrixf* CheatMain::mvpmatrix = NULL;
 Vector<playerent_wrapper*>* CheatMain::bots = NULL;
-tintersectclosest CheatMain::ointersectclosest = NULL;
 ttext_width CheatMain::otext_width = NULL;
 tdraw_text CheatMain::odraw_text = NULL;
+tTraceLine CheatMain::oTraceLine = NULL;
+
+// globals
+playerent_wrapper* AimTarget = NULL;
+float AimDistance = 3.402823466e+38F;
 
 bool CheatMain::AttachDebugConsole(void)
 {
@@ -84,7 +88,7 @@ void CheatMain::draw_text(const char* str, int x, int y, int r, int g, int b, in
 	}
 }
 
-void CheatMain::DrawOutline2d(float xMin, float yMin, float xMax, float yMax, float colorR, float colorG, float colorB)
+void CheatMain::DrawOutline2d_Color(float xMin, float yMin, float xMax, float yMax, float colorR, float colorG, float colorB)
 {
 	opengl_wrapper::oglDisable(GL_BLEND);
 	opengl_wrapper::oglDisable(GL_TEXTURE_2D);
@@ -94,6 +98,19 @@ void CheatMain::DrawOutline2d(float xMin, float yMin, float xMax, float yMax, fl
 	opengl_wrapper::oglVertex2f(xMax, yMin);
 	opengl_wrapper::oglVertex2f(xMax, yMax);
 	opengl_wrapper::oglVertex2f(xMin, yMax);
+	opengl_wrapper::oglEnd();
+	opengl_wrapper::oglEnable(GL_BLEND);
+	opengl_wrapper::oglEnable(GL_TEXTURE_2D);
+}
+
+void DrawLine(float xMin, float yMin, float xMax, float yMax, float colorR, float colorG, float colorB)
+{
+	opengl_wrapper::oglDisable(GL_BLEND);
+	opengl_wrapper::oglDisable(GL_TEXTURE_2D);
+	opengl_wrapper::oglColor4f(colorR, colorG, colorB, 1.f);
+	opengl_wrapper::oglBegin(GL_LINES);
+	opengl_wrapper::oglVertex2f(xMin, yMin);
+	opengl_wrapper::oglVertex2f(xMax, yMax);
 	opengl_wrapper::oglEnd();
 	opengl_wrapper::oglEnable(GL_BLEND);
 	opengl_wrapper::oglEnable(GL_TEXTURE_2D);
@@ -125,6 +142,7 @@ bool WorldToScreen(const Matrixf *transMat, const Vector3f& in, double screenWid
 
 void CheatMain::DrawNametags()
 {
+	if (player1 == NULL) return;
 	if ((bots == NULL) || (bots->count <= 0) || (bots->data[0] == NULL)) return;
 
 	for (int index = 0; index < bots->count; index++)
@@ -136,14 +154,16 @@ void CheatMain::DrawNametags()
 		if (WorldToScreen(mvpmatrix, bot->o, *VIRTW, VIRTH, screenPos) == false)
 			continue;
 
+		float dist = Vector3f::dist(player1->o, bot->o);
+
 		if ((bot->state == CS_DEAD) || 
 			((player1 == NULL) || (player1->state == CS_SPECTATE) || 
 				((player1->state == CS_DEAD) && (player1->spectatemode > SM_NONE))))
-			draw_text(bot->name, screenPos.x, screenPos.y, 255, 255, 255);
+			draw_textf(screenPos.x, screenPos.y, 255, 255, 255, "%s [%.2fm]", bot->name, dist);
 		else if (bot->team == player1->team)
-			draw_text(bot->name, screenPos.x, screenPos.y, 0, 255, 0);
+			draw_textf(screenPos.x, screenPos.y, 0, 255, 0, "%s [%.2fm]", bot->name, dist);
 		else
-			draw_text(bot->name, screenPos.x, screenPos.y, 255, 0, 0);
+			draw_textf(screenPos.x, screenPos.y, 255, 0, 0, "%s [%.2fm]", bot->name, dist);
 	}
 }
 
@@ -169,11 +189,106 @@ void CheatMain::DrawPlayerOutlines2d()
 		if ((bot->state == CS_DEAD) ||
 			((player1 == NULL) || (player1->state == CS_SPECTATE) ||
 				((player1->state == CS_DEAD) && (player1->spectatemode > SM_NONE))))
-			DrawOutline2d(botScreenMin.x, botScreenMin.y, botScreenMax.x, botScreenMax.y, 1.f, 1.f, 1.f);
+			DrawOutline2d_Color(botScreenMin.x, botScreenMin.y, botScreenMax.x, botScreenMax.y, 1.f, 1.f, 1.f);
+		else if (bot == AimTarget)
+			DrawOutline2d_Color(botScreenMin.x, botScreenMin.y, botScreenMax.x, botScreenMax.y, 1.f, 0.f, 1.f);
 		else if (bot->team == player1->team)
-			DrawOutline2d(botScreenMin.x, botScreenMin.y, botScreenMax.x, botScreenMax.y, 0.f, 1.f, 0.f);
+			DrawOutline2d_Color(botScreenMin.x, botScreenMin.y, botScreenMax.x, botScreenMax.y, 0.f, 1.f, 0.f);
 		else
-			DrawOutline2d(botScreenMin.x, botScreenMin.y, botScreenMax.x, botScreenMax.y, 1.f, 0.f, 0.f);
+			DrawOutline2d_Color(botScreenMin.x, botScreenMin.y, botScreenMax.x, botScreenMax.y, 1.f, 0.f, 0.f);
+
+		// used for figuring out whether positive z is 'up' (it is)
+		// and whether physent->o was already at eye level (it is)
+		botMin.x -= 0.5f;
+		botMin.z = bot->o.z;
+		botMax.x += 0.5f;
+		botMax.z = bot->o.z;
+		Vector3f expMin, expMax;
+		onScreenMin = WorldToScreen(mvpmatrix, botMin, *VIRTW, VIRTH, expMin);
+		onScreenMax = WorldToScreen(mvpmatrix, botMax, *VIRTW, VIRTH, expMax);
+		// yellow line at head-level
+		DrawLine(expMin.x, expMin.y, expMax.x, expMax.y, 1.f, 1.f, 0.f);
+		botMin.z = bot->o.z - bot->eyeheight;
+		botMax.z = bot->o.z - bot->eyeheight;
+		onScreenMin = WorldToScreen(mvpmatrix, botMin, *VIRTW, VIRTH, expMin);
+		onScreenMax = WorldToScreen(mvpmatrix, botMax, *VIRTW, VIRTH, expMax);
+		// cyan line at foot-level
+		DrawLine(expMin.x, expMin.y, expMax.x, expMax.y, 0.f, 1.f, 1.f);
+
+	}
+}
+
+void CheatMain::TraceLine(Vector3f from, Vector3f to, dynent_wrapper* pTracer, bool CheckPlayers, traceresult_wrapper* tr)
+{
+	__asm
+	{
+		push 0
+		push tr
+		push to.z
+		push to.y
+		push to.x
+		push from.z
+		push from.y
+		push from.x
+		mov ecx, pTracer
+		mov dl, CheckPlayers
+		call oTraceLine
+		add esp, 0x20
+	}
+}
+
+playerent_wrapper* CheatMain::FindNearestTarget()
+{
+	if ((player1 == NULL) || (player1->state != CS_ALIVE)) return NULL;
+	if ((bots == NULL) || (bots->count <= 0) || (bots->data[0] == NULL)) return NULL;
+
+	playerent_wrapper* closestTarget = NULL;
+	for (int index = 0; index < bots->count; index++)
+	{
+		playerent_wrapper* bot = bots->data[index];
+		if ((bot == NULL) || (bot->state == CS_DEAD) || (bot->team == player1->team)) continue;
+
+		traceresult_wrapper tr{};
+		TraceLine(player1->o, bot->o, player1, false, &tr);
+		if (tr.collided == false)
+		{
+			float distSquared = Vector3f::squareddist(player1->o, bot->o);
+			if (distSquared < AimDistance)
+			{
+				AimDistance = distSquared;
+				closestTarget = bot;
+			}
+		}
+	}
+
+	return closestTarget;
+}
+
+// credit: Rake / h4nsbr1x via [https://guidedhacking.com/threads/ultimate-calcangle-thread-how-to-calculate-angle-functions.8165/#post-73276]
+Vector3f CalcAngle(Vector3f src, Vector3f dst)
+{
+	Vector3f angle;
+	float dist = Vector3f::dist(src, dst);
+
+	angle.x = -atan2f(dst.x - src.x, dst.y - src.y) / PI * 180.0f + 180.0f;
+	angle.y = asinf((dst.z - src.z) / dist) * Rad2Deg;
+	angle.z = 0.0f;
+
+	return angle;
+}
+
+void CheatMain::DoAimbot()
+{
+	if ((player1 == NULL) || (player1->state != CS_ALIVE)) return;
+
+	AimDistance = 3.402823466e+38F;
+	AimTarget = FindNearestTarget();
+
+	if (AimTarget != NULL)
+	{
+		Vector3f aimAngle = CalcAngle(player1->o, AimTarget->o);
+		player1->rotation.x = aimAngle.x;
+		player1->rotation.y = aimAngle.y;
 	}
 }
 
@@ -183,19 +298,39 @@ void hk_gl_drawhud(int w, int h, int curfps, int nquads, int curvert, bool under
 	CheatMain::draw_text("Hello World", 100, 500, 255, 255, 255);
 
 	CheatMain::draw_textf(100, 600, 255, 255, 0, "MyModule: %tx", CheatMain::hMod);
+	if (CheatMain::player1 != NULL)
+	{
+		playerent_wrapper* localPlayer = CheatMain::player1;
+		CheatMain::draw_textf(100, 800, 255, 255, 0, "Player1->o: (%.2f, %.2f, %.2f)", localPlayer->o.x, localPlayer->o.y, localPlayer->o.z);
+	}
+	if (CheatMain::camera1 != NULL)
+	{
+		physent_wrapper* camera = CheatMain::camera1;
+		CheatMain::draw_textf(100, 850, 255, 255, 0, "Camera1->o: (%.2f, %.2f, %.2f)", camera->o.x, camera->o.y, camera->o.z);
+	}
 
 	if ((CheatMain::bots != NULL) && (CheatMain::bots->count > 0) && (CheatMain::bots->data[0] != NULL))
 	{
-		CheatMain::draw_textf(100, 700, 255, 255, 255, "Bot[0]: %tx (@ %tx)\nBot[0]->name: %s (@ %tx)",
+		CheatMain::draw_textf(100, 900, 255, 255, 255, "Bot[0]: %tx (@ %tx)\nBot[0]->name: %s (@ %tx)\nBot[0]->o: (%.2f, %.2f, %.2f)",
 			CheatMain::bots->data[0], &CheatMain::bots->data[0],
-			CheatMain::bots->data[0]->name, &(CheatMain::bots->data[0]->name));
+			CheatMain::bots->data[0]->name, &(CheatMain::bots->data[0]->name),
+			CheatMain::bots->data[0]->o.x, CheatMain::bots->data[0]->o.y, CheatMain::bots->data[0]->o.z);
 	}
 
+	if (AimTarget != NULL)
+	{
+		CheatMain::draw_textf(2000, 500, 255, 255, 0, "ClosestTarget: %s (%.2f)", AimTarget->name, AimDistance);
+	}
+
+	// ESP functionality
 	CheatMain::DrawNametags();
 	CheatMain::DrawPlayerOutlines2d();
 
+	// aimbot functionality (who would've thunk it)
+	CheatMain::DoAimbot();
+
 	// used for debugging :)
-	//CheatMain::DrawOutline2d(100, 100, 1000, 1000, 1.f, 0.f, 0.f);
+	//CheatMain::DrawOutline2d_Color(100, 100, 1000, 1000, 1.f, 0.f, 0.f);
 
 	CheatMain::ogl_drawhud_trampoline(w, h, curfps, nquads, curvert, underwater, elapsed);
 }
@@ -222,9 +357,9 @@ void CheatMain::ThreadedInitialize(HMODULE hMod)
 	CheatMain::mvpmatrix = (Matrixf*)(0x57dfd0);
 	CheatMain::bots = (Vector<playerent_wrapper*>*)(0x591FCC);
 
-	CheatMain::ointersectclosest = (tintersectclosest)(0x4CA250);
 	CheatMain::otext_width = (ttext_width)(0x46E370);
 	CheatMain::odraw_text = (tdraw_text)(0x46DD20);
+	CheatMain::oTraceLine = (tTraceLine)(0x509010);
 
 	MH_STATUS mhStatus = MH_Initialize();
 	if (mhStatus != MH_OK)

@@ -40,7 +40,7 @@ I like to keep the top-level of these checklists as general as possible so they 
 ### Aimbot Checklist ###
 
 - [x] Raycast / Traceline (so you don't aim through walls)
-    * `CBot::CheckStuck` calls `TraceLine` and is near string `Randomly avoiding stuck...`
+    * `CBot::Think` is a virtual function and calls `MainAI` which calls `FindEnemy` which calls `IsVisible` which finally calls `TraceLine`
 - [x] Set view angles (any method of making the player aim at our target)
     * `camera1`'s pitch and yaw can be set, which we found in `gl_drawhud`
 
@@ -68,8 +68,8 @@ Feel free to copy the blank checklists over to your own project.
 ## Gathering Information ##
 
 With our goals and checklists defined, we can now begin the research phase of the project.<br>
-We'll start by exploring the game's codebase since it's an open source project. This can also be done for Unity engine games built on the mono backend using an IL disassembler/decompiler and several other games or game engines. Access to a target's codebase, or partial codebase, is surprisingly common and helps tremendously.<br>
-Assault cube's codebase can be found here: https://github.com/assaultcube/AC/tree/v1.3.0.2
+We'll start by exploring the game's codebase since it's an open source project. This can also be done for Unity engine games built on the mono backend using an IL disassembler/decompiler as well as several other games or game engines. Access to a target's codebase, or partial codebase, is surprisingly common and helps tremendously.<br>
+Assault Cube's codebase can be found here: https://github.com/assaultcube/AC/tree/v1.3.0.2
 
 So, since our first goal is ESP functionality and we know we need to draw on the screen we can start by searching for the word "draw" in all .c/.cpp files<br>
 To do so, I use notepad++ and its excellent 'Find in Files' search tool. I point it at the `/source/src` directory as that's where the core game code seems to be located.<br>
@@ -181,8 +181,8 @@ So next comes the Raycast / Traceline. So a good tip for finding this is to go i
 The next item on our checklists: a way to make our localplayer aim at our target. This should be really easy, we should be able to just set the camera's pitch and yaw after we calculate the angle between us and the enemy, and since we've already found `camera1` in the `gl_drawhud` function (and a lot of its field offsets) we can go ahead and check that off our checklist too.<br>
 
 Finally, the only item remaining is to find the list of entities that we want to aim at. Since assault cube is technically a multiplayer game there's the potential that some less mature people will use this lab to ruin the enjoyment of others in multiplayer matches. To guard against that, I won't be searching for the list of player entities, but rather only bot entities. Bots can be added to singleplayer games while offline and this is the ideal situation for us. We do not want to ruin anyone's multiplayer experience or give the gamedevs a headache in any way.<br>
-So, if you go in game and start up a bot match (Esc -> Singleplayer -> Bot team deathmatch -> whatever else) then you'll see a message in the top left: "Bot connected: \<bot name>". That's a clue! We can search for that string in the source code and find it's used on line 937 in botmanager.cpp. Now we could look into the BotManager.CreateBot function and probably find what we're looking for, but looking at this file I can see a bunch of bot-related console commands are being registered, so I'm going to scroll down and see if I can find a really small function that loops the bots as that'll probably be easier for us to find in the disassembly later.<br>
-So scrolling down I see the string "bot %s disconnected" and I see this is used in both the `kickbot` and `kickallbots` functions, but it doesn't matter which one we look at in the disassembly as they both loop a `bots` global reference and that's what we're looking for. Now we can cross the final item off our checklist: the "Player list".
+So, if you go in game and start up a bot match (Esc -> Singleplayer -> Bot team deathmatch -> whatever else) then you'll see a message in the top left: `Bot connected: <bot name>`. That's a clue! We can search for that string in the source code and find it's used on line 937 in botmanager.cpp. Now we could look into the BotManager.CreateBot function and probably find what we're looking for, but looking at this file I can see a bunch of bot-related console commands are being registered, so I'm going to scroll down and see if I can find a really small function that loops the bots as that'll probably be easier for us to find in the disassembly later.<br>
+So scrolling down I see the string `bot %s disconnected` and I see this is used in both the `kickbot` and `kickallbots` functions, but it doesn't matter which one we look at in the disassembly as they both loop a `bots` global reference and that's what we're looking for. Now we can cross the final item off our checklist: the "Player list".
 
 So now we're all done! We've gathered all the information we need to fulfill our goals, and now all that's left is the implementation. The next chapter in this incredibly dry and meticulous novel will be finding all these functions in our disassembler and also finding all the global references and field offsets that we need.<br>
 

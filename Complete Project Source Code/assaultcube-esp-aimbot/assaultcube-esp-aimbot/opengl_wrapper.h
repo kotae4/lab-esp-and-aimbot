@@ -26,6 +26,7 @@ typedef void(__stdcall* tglGetFloatv)(int pname, float* params);
 #define GL_BLEND 0xbe2
 #define GL_SRC_ALPHA 0x302
 #define GL_ONE_MINUS_SRC_ALPHA 0x303
+#define GL_LINES 0x1
 #define GL_LINE_LOOP 0x2
 #define GL_TRIANGLE_STRIP 0x5
 #define GL_ONE 0x1

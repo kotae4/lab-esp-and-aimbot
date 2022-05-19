@@ -1,10 +1,28 @@
 #pragma once
 
 #include <stdint.h>
+#include <math.h>
+
+#define PI    (3.141592654f)
+#define Rad2Deg (57.295779513082320876798154814105f)
 
 struct Vector3f
 {
 	float x, y, z;
+	Vector3f() { x = y = z = 0; }
+	Vector3f(float _x, float _y, float _z) : x(_x), y(_y), z(_z) {}
+
+	static float squareddist(const Vector3f& v1, const Vector3f& v2)
+	{
+		Vector3f diff{ v1.x - v2.x, v1.y - v2.y, v1.z - v2.z };
+		return ((diff.x * diff.x) + (diff.y * diff.y) + (diff.z * diff.z));
+	}
+
+	static float dist(const Vector3f& v1, const Vector3f& v2)
+	{
+		Vector3f diff{ v1.x - v2.x, v1.y - v2.y, v1.z - v2.z };
+		return sqrtf((diff.x * diff.x) + (diff.y * diff.y) + (diff.z * diff.z));
+	}
 };
 
 struct Vector4f
@@ -273,9 +291,17 @@ public:
 }; //Size: 0x0068
 static_assert(sizeof(guninfo_wrapper) == 0x68);
 
+class traceresult_wrapper
+{
+public:
+	Vector3f end; //0x0000
+	bool collided; //0x000C
+}; //Size: 0x000D
+static_assert(sizeof(traceresult_wrapper) == 0x10);
+
 // function definitions
 
 typedef void(__cdecl* tgl_drawhud)(int w, int h, int curfps, int nquads, int curvert, bool underwater, int elapsed);
-typedef playerent_wrapper*(__cdecl* tintersectclosest)(const Vector3f& from, const Vector3f& to, const playerent_wrapper* at, float& bestdistsquared, int& hitzone, bool aiming /*= true*/);
 typedef int(__cdecl* ttext_width)(const char* str);
 typedef void(__cdecl* tdraw_text)(const char* str, int left, int top, int r, int g, int b, int a, int cursor, int maxwidth);
+typedef void(__cdecl* tTraceLine)(Vector3f from, Vector3f to, dynent_wrapper* pTracer, bool CheckPlayers, traceresult_wrapper* tr, bool SkipTags);

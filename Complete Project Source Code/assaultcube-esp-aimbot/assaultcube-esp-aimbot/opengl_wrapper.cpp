@@ -53,6 +53,7 @@ bool opengl_wrapper::Initialize()
 
 #define LoadAllFcnAddr(...) FOR_EACH(LoadFcnAddr, __VA_ARGS__)
 
+	// this right here saves us a good hundred lines of boilerplate code :)
 	LoadAllFcnAddr(glMatrixMode, glPushMatrix, glPopMatrix, glLoadIdentity,
 		glOrtho, glFrustum, glEnable, glDisable, glBlendFunc, glBegin,
 		glEnd, glColor4f, glVertex2f, glVertex3f, glRotatef, glScalef, glTranslatef, glGetFloatv);
